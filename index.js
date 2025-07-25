@@ -33,8 +33,55 @@ bot.once('ready', () => {
 
 // ========== Message Event ==========
 bot.on('messageCreate', async (message) => {
+  const OWNER_ID = '541763571357319168';
+  // ========== Global Command Access Check ==========
+  const isOwner = message.author.id === OWNER_ID;
+
+  const accessAllowed = async () => {
+    if (isOwner) return true;
+
+    const res = await db.query('SELECT 1 FROM authorized_users WHERE user_id = $1 LIMIT 1', [message.author.id]);
+    return res.rowCount > 0;
+  };
+
+  const allowed = await accessAllowed();
+  if (!allowed && message.content.startsWith('!')) {
+    return message.reply('❌ You are not authorized to use this bot.');
+  }
+
   if (message.author.bot) return;
   const args = message.content.trim().split(/\s+/);
+
+
+  if (args[0] === '!allow' && isOwner) {
+    const userMention = message.mentions.users.first();
+    if (!userMention) return message.reply('Usage: `!allow @user`');
+
+    try {
+      await db.query(
+        'INSERT INTO authorized_users (user_id, added_by) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+                     [userMention.id, message.author.id]
+      );
+      message.reply(`✅ Authorized ${userMention.tag} to use the bot.`);
+    } catch (err) {
+      console.error('❌ DB Error (allow):', err);
+      message.reply('❌ Failed to authorize user.');
+    }
+  }
+
+  if (args[0] === '!disallow' && isOwner) {
+    const userMention = message.mentions.users.first();
+    if (!userMention) return message.reply('Usage: `!disallow @user`');
+
+    try {
+      await db.query('DELETE FROM authorized_users WHERE user_id = $1', [userMention.id]);
+      message.reply(`✅ Revoked access from ${userMention.tag}.`);
+    } catch (err) {
+      console.error('❌ DB Error (disallow):', err);
+      message.reply('❌ Failed to remove user access.');
+    }
+  }
+
 
   // === !tagreact @user 😀 😂 ===
   if (args[0] === '!tagreact') {
