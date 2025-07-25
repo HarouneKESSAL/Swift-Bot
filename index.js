@@ -1,15 +1,27 @@
 const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
 const { Client: PgClient } = require('pg');
+const http = require('http');
 require('dotenv').config();
 
+// ========== Simple HTTP server to keep port open for Render ==========
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end('Bot is alive!');
+}).listen(PORT, () => {
+  console.log(`🌐 HTTP server running on port ${PORT}`);
+});
+
+// ========== Discord Bot Initialization ==========
 const bot = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
+// ========== PostgreSQL Initialization ==========
 const db = new PgClient({ connectionString: process.env.DATABASE_URL });
 db.connect();
 
@@ -19,6 +31,7 @@ bot.once('ready', () => {
   console.log(`🤖 Logged in as ${bot.user.tag}`);
 });
 
+// ========== Message Event ==========
 bot.on('messageCreate', async (message) => {
   if (message.author.bot) return;
   const args = message.content.trim().split(/\s+/);
@@ -48,7 +61,7 @@ bot.on('messageCreate', async (message) => {
     }
   }
 
-  // === !tagmessage @user your custom message ===
+  // === !tagmessage @user Your message here ===
   if (args[0] === '!tagmessage') {
     const userMention = message.mentions.users.first();
     const msg = args.slice(2).join(' ');
@@ -59,9 +72,9 @@ bot.on('messageCreate', async (message) => {
 
     try {
       await db.query(`
-      INSERT INTO tag_reacts (user_id, emoji, custom_message)
-      VALUES ($1, NULL, $2)
-      ON CONFLICT (user_id, emoji) DO UPDATE SET custom_message = $2
+        INSERT INTO tag_reacts (user_id, emoji, custom_message)
+        VALUES ($1, NULL, $2)
+        ON CONFLICT (user_id, emoji) DO UPDATE SET custom_message = EXCLUDED.custom_message
       `, [userMention.id, msg]);
 
       message.reply(`✅ Set custom tag message for ${userMention.tag}: "${msg}"`);
@@ -74,17 +87,12 @@ bot.on('messageCreate', async (message) => {
   // === !removeTagMessage @user ===
   if (args[0] === '!removeTagMessage') {
     const userMention = message.mentions.users.first();
-
     if (!userMention) {
       return message.reply('Usage: `!removeTagMessage @user`');
     }
 
     try {
-      await db.query(`
-      DELETE FROM tag_reacts
-      WHERE user_id = $1 AND emoji IS NULL
-      `, [userMention.id]);
-
+      await db.query('DELETE FROM tag_reacts WHERE user_id = $1 AND emoji IS NULL', [userMention.id]);
       message.reply(`✅ Removed custom message for ${userMention.tag}.`);
     } catch (err) {
       console.error('❌ DB Error (removeTagMessage):', err);
@@ -96,17 +104,13 @@ bot.on('messageCreate', async (message) => {
   if (args[0] === '!taglist') {
     try {
       const res = await db.query('SELECT user_id, emoji, custom_message FROM tag_reacts ORDER BY user_id');
-
-      if (res.rowCount === 0) {
-        return message.reply('📭 No tag reactions or messages found.');
-      }
+      if (res.rowCount === 0) return message.reply('📭 No tag reactions or messages found.');
 
       const map = new Map();
 
       for (const row of res.rows) {
         const key = row.user_id;
         if (!map.has(key)) map.set(key, { emojis: [], message: null });
-
         if (row.emoji) map.get(key).emojis.push(row.emoji);
         if (row.custom_message) map.get(key).message = row.custom_message;
       }
@@ -114,7 +118,7 @@ bot.on('messageCreate', async (message) => {
       let output = '';
       for (const [userId, { emojis, message }] of map.entries()) {
         const user = await bot.users.fetch(userId).catch(() => null);
-        const tag = user ? user.tag : userId;
+        const tag = user ? user.tag : `Unknown (${userId})`;
 
         output += `👤 **${tag}**\n`;
         if (emojis.length) output += `  🧷 Emojis: ${emojis.join(' ')}\n`;
@@ -122,7 +126,10 @@ bot.on('messageCreate', async (message) => {
         output += '\n';
       }
 
-      message.reply({ content: output.slice(0, 2000) || '📭 Nothing found.' });
+      const chunks = output.match(/[\s\S]{1,1900}/g) || [];
+      for (const chunk of chunks) {
+        await message.channel.send(chunk);
+      }
     } catch (err) {
       console.error('❌ DB Error (taglist):', err);
       message.reply('❌ Failed to fetch list.');
@@ -149,23 +156,20 @@ bot.on('messageCreate', async (message) => {
 
     try {
       const emoji = await message.guild.emojis.create({ name, attachment: url });
-      return message.reply(`✅ Emoji uploaded: <${isAnimated ? 'a' : ''}:${emoji.name}:${emoji.id}>`);
+      message.reply(`✅ Emoji uploaded: <${isAnimated ? 'a' : ''}:${emoji.name}:${emoji.id}>`);
     } catch (err) {
       console.error('❌ Failed to upload emoji:', err);
-      return message.reply('❌ Could not upload emoji. Maybe invalid or server is full.');
+      message.reply('❌ Could not upload emoji. Maybe invalid or server is full.');
     }
   }
 
-  // === Auto react/message when user is mentioned ===
+  // === Auto-react and message when someone is mentioned ===
   for (const [id] of message.mentions.users) {
     try {
-      const res = await db.query(
-        'SELECT emoji, custom_message FROM tag_reacts WHERE user_id = $1',
-        [id]
-      );
+      const res = await db.query('SELECT emoji, custom_message FROM tag_reacts WHERE user_id = $1', [id]);
 
       const emojis = res.rows.map(r => r.emoji).filter(Boolean);
-      const customMessages = res.rows.map(r => r.custom_message).filter(Boolean);
+      const messages = res.rows.map(r => r.custom_message).filter(Boolean);
 
       for (const emoji of emojis) {
         try {
@@ -175,7 +179,7 @@ bot.on('messageCreate', async (message) => {
         }
       }
 
-      for (const msg of customMessages) {
+      for (const msg of messages) {
         try {
           await message.channel.send(msg);
         } catch (err) {
@@ -183,9 +187,10 @@ bot.on('messageCreate', async (message) => {
         }
       }
     } catch (err) {
-      console.error('❌ DB Error (mention check):', err);
+      console.error('❌ DB Error (mention auto-action):', err);
     }
   }
 });
 
+// ========== Bot Login ==========
 bot.login(process.env.BOT_TOKEN);
