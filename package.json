@@ -2,7 +2,7 @@
   "name": "tag-react-bot",
   "version": "1.0.0",
   "description": "",
-  "type": "module",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js"
@@ -15,7 +15,6 @@
     "axios": "^1.11.0",
     "data-uri-to-buffer": "^6.0.2",
     "discord.js": "^14.21.0",
-    "dotenv": "^17.2.0",
     "node-fetch": "^3.3.2",
     "pg": "^8.16.3"
   }
