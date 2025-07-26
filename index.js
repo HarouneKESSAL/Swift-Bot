@@ -1,5 +1,4 @@
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
-import { HfInference } from '@huggingface/inference';
 
 import { config } from 'dotenv';
 import fetch from 'node-fetch';
@@ -21,7 +20,7 @@ const { Client: PgClient } = pkg;
 const db = new PgClient({ connectionString: process.env.DATABASE_URL });
 await db.connect();
 
-const hf = new HfInference(process.env.HF_API_KEY);
+
 
 const bot = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
@@ -66,18 +65,31 @@ function containsBannedLink(content) {
 
 async function isToxicMessage(content) {
   try {
-    const response = await hf.textClassification({
-      model: "unitary/toxic-bert",
-      inputs: content,
+    const response = await fetch("https://router.huggingface.co/hf-inference/models/unitary/toxic-bert", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.HF_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ inputs: content }),
     });
-    const toxicScore = response.find((r) => r.label.toLowerCase().includes("toxic"));
-    console.log(`[ML] Toxicity score: ${toxicScore?.score ?? "unknown"}`);
-    return toxicScore && toxicScore.score >= 0.7;
+
+    const result = await response.json();
+
+    const toxicResult = result?.[0]?.find(r =>
+    r.label.toLowerCase().includes("toxic")
+    );
+
+    console.log(`[ML] Toxicity score: ${toxicResult?.score ?? "unknown"}`);
+
+    return toxicResult && toxicResult.score >= 0.7;
+
   } catch (err) {
-    console.error("\uD83E\uDEE0 ML error:", err?.response?.data || err.message);
+    console.error("❌ Toxicity check failed:", err.message);
     return false;
   }
 }
+
 
 async function logModerationAction(targetUser, action, reason = null, message = null) {
   const guildId = message.guild.id;
