@@ -1,25 +1,31 @@
-const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
-const { Client: PgClient } = require('pg');
-const http = require('http');
-require('dotenv').config();
+import { Client, GatewayIntentBits, Partials } from 'discord.js';
+import { HfInference } from '@huggingface/inference';
+import { config } from 'dotenv';
+import fetch from 'node-fetch';
+import pkg from 'pg';
+import http from 'http';
 const PORT = process.env.PORT || 3000;
+
 http.createServer((req, res) => {
   res.writeHead(200);
   res.end('Bot is alive!');
 }).listen(PORT, () => {
-  console.log(`\uD83C\uDF10 HTTP server running on port ${PORT}`);
+  console.log(`🌐 HTTP server running on port ${PORT}`);
 });
 
-const bot = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
-});
+config();
+
+const { Client: PgClient } = pkg;
 
 const db = new PgClient({ connectionString: process.env.DATABASE_URL });
-db.connect();
+await db.connect();
+
+const hf = new HfInference(process.env.HF_API_KEY);
+
+const bot = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
+});
 
 const MAX_EMOJIS_PER_USER = 5;
 const messageTimestamps = new Map();
@@ -55,8 +61,7 @@ function containsBannedLink(content) {
   return bannedPatterns.some((regex) => regex.test(content));
 }
 
-const { InferenceClient } = require("@huggingface/inference");
-const hf = new InferenceClient(process.env.HF_TOKEN);
+
 
 async function isToxicMessage(content) {
   try {
