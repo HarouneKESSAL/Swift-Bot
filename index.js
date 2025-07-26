@@ -1,5 +1,6 @@
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import { HfInference } from '@huggingface/inference';
+
 import { config } from 'dotenv';
 import fetch from 'node-fetch';
 import pkg from 'pg';
