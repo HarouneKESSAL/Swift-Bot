@@ -1,31 +1,27 @@
-import { Client, GatewayIntentBits, Partials } from 'discord.js';
+const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
+const { Client: PgClient } = require('pg');
+const http = require('http');
 
-import { config } from 'dotenv';
-import fetch from 'node-fetch';
-import pkg from 'pg';
-import http from 'http';
+
+require('dotenv').config();
 const PORT = process.env.PORT || 3000;
-
 http.createServer((req, res) => {
   res.writeHead(200);
   res.end('Bot is alive!');
 }).listen(PORT, () => {
-  console.log(`🌐 HTTP server running on port ${PORT}`);
+  console.log(`\uD83C\uDF10 HTTP server running on port ${PORT}`);
 });
-
-config();
-
-const { Client: PgClient } = pkg;
-
-const db = new PgClient({ connectionString: process.env.DATABASE_URL });
-await db.connect();
-
-
 
 const bot = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
+
+const db = new PgClient({ connectionString: process.env.DATABASE_URL });
+db.connect();
 
 const MAX_EMOJIS_PER_USER = 5;
 const messageTimestamps = new Map();
@@ -89,7 +85,6 @@ async function isToxicMessage(content) {
     return false;
   }
 }
-
 
 async function logModerationAction(targetUser, action, reason = null, message = null) {
   const guildId = message.guild.id;
