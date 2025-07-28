@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@discordjs/util": "^1.1.1",
     "@huggingface/inference": "^4.5.3",
     "axios": "^1.11.0",
     "data-uri-to-buffer": "^6.0.2",

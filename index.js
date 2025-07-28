@@ -246,54 +246,54 @@ bot.on('messageCreate', async (message) => {
   const args = message.content.trim().split(/\s+/);
 
 
-  // if (args[0] === '!generate') {
-  //   const prompt = args.slice(1).join(' ').trim();
-  //
-  //   if (!prompt) {
-  //     return message.reply('❌ Please provide a prompt.\nExample: `!generate cyberpunk cat playing piano`');
-  //   }
-  //
-  //   try {
-  //     await message.channel.send('🎨 Generating image, please wait...');
-  //
-  //     const response = await fetch('https://router.huggingface.co/nebius/v1/images/generations', {
-  //       method: 'POST',
-  //       headers: {
-  //         Authorization: `Bearer ${process.env.HF_TOKEN}`,
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify({
-  //         model: 'stability-ai/sdxl',
-  //         prompt,
-  //         parameters: { num_inference_steps: 5 },
-  //       }),
-  //     });
-  //
-  //     if (!response.ok) {
-  //       const error = await response.json();
-  //       console.error('❌ HuggingFace API Error:', error);
-  //       return message.reply(`❌ API Error: ${error?.detail?.[0]?.msg || 'Image generation failed'}`);
-  //     }
-  //
-  //     const result = await response.json();
-  //     const imageUrl = result.data?.[0]?.url;
-  //
-  //     if (!imageUrl) {
-  //       console.error('🎯 Hugging Face API result:', result);
-  //       return message.reply('❌ No image URL returned from the API.');
-  //     }
-  //
-  //     message.channel.send({
-  //       content: `🖼️ Generated image for: **${prompt}**`,
-  //       files: [imageUrl],
-  //     });
-  //   } catch (err) {
-  //     console.error('❌ Error during image generation:', err);
-  //     message.reply('❌ Failed to generate image.');
-  //   }
-  //
-  //   return;
-  // }
+  if (args[0] === '!generate') {
+    const prompt = args.slice(1).join(' ').trim();
+
+    if (!prompt) {
+      return message.reply('❌ Please provide a prompt.\nExample: `!generate cyberpunk cat playing piano`');
+    }
+
+    try {
+      await message.channel.send('🎨 Generating image, please wait...');
+
+      const response = await fetch('https://router.huggingface.co/nebius/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.HF_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'stability-ai/sdxl',
+          prompt,
+          parameters: { num_inference_steps: 5 },
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('❌ HuggingFace API Error:', error);
+        return message.reply(`❌ API Error: ${error?.detail?.[0]?.msg || 'Image generation failed'}`);
+      }
+
+      const result = await response.json();
+      const imageUrl = result.data?.[0]?.url;
+
+      if (!imageUrl) {
+        console.error('🎯 Hugging Face API result:', result);
+        return message.reply('❌ No image URL returned from the API.');
+      }
+
+      message.channel.send({
+        content: `🖼️ Generated image for: **${prompt}**`,
+        files: [imageUrl],
+      });
+    } catch (err) {
+      console.error('❌ Error during image generation:', err);
+      message.reply('❌ Failed to generate image.');
+    }
+
+    return;
+  }
 
   // ===== Log channel command =====
   if (args[0] === '!setlogchannel') {
