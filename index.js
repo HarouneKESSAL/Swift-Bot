@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
 const { Client: PgClient } = require('pg');
 const http = require('http');
-
+const { util } = require('@discordjs/util');
 require('dotenv').config();
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
