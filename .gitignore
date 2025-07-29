@@ -26,8 +26,6 @@ wheels/
 MANIFEST
 
 # PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
 
@@ -112,3 +110,16 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# ========================
+# Node.js specific ignores
+# ========================
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Optional: build directories for JS projects
+dist/
+build/
+out/
