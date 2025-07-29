@@ -19,7 +19,10 @@ const bot = new Client({
   ],
 });
 
-const db = new PgClient({ connectionString: process.env.DATABASE_URL });
+const db = new PgClient({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 db.connect();
 
 const MAX_EMOJIS_PER_USER = 5;
@@ -72,7 +75,7 @@ async function isToxicMessage(content) {
     const result = await response.json();
 
     const toxicResult = result?.[0]?.find(r =>
-    r.label.toLowerCase().includes("toxic")
+        r.label.toLowerCase().includes("toxic")
     );
 
     console.log(`[ML] Toxicity score: ${toxicResult?.score ?? "unknown"}`);
@@ -97,14 +100,14 @@ async function logModerationAction(targetUser, action, reason = null, message = 
   try {
     // Log to PostgreSQL
     await db.query(
-      'INSERT INTO moderation_logs (guild_id, moderator_id, action, target_id, reason) VALUES ($1, $2, $3, $4, $5)',
-                   [guildId, moderatorId, action, targetId, reason]
+        'INSERT INTO moderation_logs (guild_id, moderator_id, action, target_id, reason) VALUES ($1, $2, $3, $4, $5)',
+        [guildId, moderatorId, action, targetId, reason]
     );
 
     // Fetch log channel from DB
     const result = await db.query(
-      'SELECT channel_id FROM log_channel_settings WHERE guild_id = $1',
-      [guildId]
+        'SELECT channel_id FROM log_channel_settings WHERE guild_id = $1',
+        [guildId]
     );
 
     const logChannelId = result.rows[0]?.channel_id;
@@ -123,7 +126,7 @@ async function logModerationAction(targetUser, action, reason = null, message = 
               { name: "Reason", value: reason || "Not provided", inline: false },
             ],
             timestamp: new Date().toISOString(),
-                            footer: { text: `Moderator: ${bot.user.username}` },
+            footer: { text: `Moderator: ${bot.user.username}` },
           },
         ],
       });
@@ -138,8 +141,8 @@ setInterval(async () => {
   const now = new Date();
   try {
     const expired = await db.query(
-      'SELECT * FROM muted_users WHERE unmute_at <= $1',
-      [now]
+        'SELECT * FROM muted_users WHERE unmute_at <= $1',
+        [now]
     );
 
     for (const row of expired.rows) {
@@ -304,10 +307,10 @@ bot.on('messageCreate', async (message) => {
 
     try {
       await db.query(
-        `INSERT INTO log_channel_settings (guild_id, channel_id)
-        VALUES ($1, $2)
-        ON CONFLICT (guild_id) DO UPDATE SET channel_id = $2`,
-                     [message.guild.id, mentionedChannel.id]
+          `INSERT INTO log_channel_settings (guild_id, channel_id)
+           VALUES ($1, $2)
+             ON CONFLICT (guild_id) DO UPDATE SET channel_id = $2`,
+          [message.guild.id, mentionedChannel.id]
       );
       message.reply(`✅ Log channel has been set to ${mentionedChannel}.`);
     } catch (err) {
@@ -321,8 +324,8 @@ bot.on('messageCreate', async (message) => {
   if (args[0] === '!showlogchannel') {
     try {
       const result = await db.query(
-        `SELECT channel_id FROM log_channel_settings WHERE guild_id = $1`,
-        [message.guild.id]
+          `SELECT channel_id FROM log_channel_settings WHERE guild_id = $1`,
+          [message.guild.id]
       );
 
       if (result.rows.length === 0) {
@@ -346,8 +349,8 @@ bot.on('messageCreate', async (message) => {
   if (args[0] === '!removelogchannel') {
     try {
       await db.query(
-        `DELETE FROM log_channel_settings WHERE guild_id = $1`,
-        [message.guild.id]
+          `DELETE FROM log_channel_settings WHERE guild_id = $1`,
+          [message.guild.id]
       );
       message.reply('🗑️ Log channel setting has been removed.');
     } catch (err) {
@@ -358,35 +361,35 @@ bot.on('messageCreate', async (message) => {
   }
 
   // Add to the command handler (inside messageCreate):
-   if (args[0] === '!mute') {
-     if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
+  if (args[0] === '!mute') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
       return message.reply('❌ You need **Moderate Members** permission.');
-     }
+    }
 
-     const userMention = message.mentions.users.first();
-     const timeArg = args[2];
-     const reason = args.slice(3).join(' ') || 'No reason';
+    const userMention = message.mentions.users.first();
+    const timeArg = args[2];
+    const reason = args.slice(3).join(' ') || 'No reason';
 
-      if (!userMention || !timeArg) {
-        return message.reply('Usage: `!mute @user 10m reason`');
-      }
+    if (!userMention || !timeArg) {
+      return message.reply('Usage: `!mute @user 10m reason`');
+    }
 
-      const durationMs = parseDuration(timeArg);
-      if (!durationMs) return message.reply('❌ Invalid time. Use formats like 10m, 1h, 1d');
-      const member = await message.guild.members.fetch(userMention.id);
-      const muteRole = message.guild.roles.cache.find(r => r.name.toLowerCase() === 'muted');
-      if (!muteRole) return message.reply('❌ Could not find a role named `muted`.');
+    const durationMs = parseDuration(timeArg);
+    if (!durationMs) return message.reply('❌ Invalid time. Use formats like 10m, 1h, 1d');
+    const member = await message.guild.members.fetch(userMention.id);
+    const muteRole = message.guild.roles.cache.find(r => r.name.toLowerCase() === 'muted');
+    if (!muteRole) return message.reply('❌ Could not find a role named `muted`.');
 
-     await member.roles.add(muteRole);
+    await member.roles.add(muteRole);
 
-     const unmuteAt = new Date(Date.now() + durationMs);
-     await db.query(
-       'INSERT INTO muted_users (guild_id, user_id, muted_by, unmute_at) VALUES ($1, $2, $3, $4)',
-       [message.guild.id, userMention.id, message.author.id, unmuteAt]
-     );
-     await logModerationAction(userMention, 'mute', reason, message);
-     message.reply(`🔇 ${userMention.tag} has been muted for ${timeArg}.`);
-   }
+    const unmuteAt = new Date(Date.now() + durationMs);
+    await db.query(
+        'INSERT INTO muted_users (guild_id, user_id, muted_by, unmute_at) VALUES ($1, $2, $3, $4)',
+        [message.guild.id, userMention.id, message.author.id, unmuteAt]
+    );
+    await logModerationAction(userMention, 'mute', reason, message);
+    message.reply(`🔇 ${userMention.tag} has been muted for ${timeArg}.`);
+  }
 
   if (args[0] === '!allow' && isOwner) {
     const userMention = message.mentions.users.first();
@@ -394,8 +397,8 @@ bot.on('messageCreate', async (message) => {
 
     try {
       await db.query(
-        'INSERT INTO authorized_users (user_id, added_by) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-                     [userMention.id, message.author.id]
+          'INSERT INTO authorized_users (user_id, added_by) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [userMention.id, message.author.id]
       );
       message.reply(`✅ Authorized ${userMention.tag} to use the bot.`);
     } catch (err) {
@@ -418,8 +421,8 @@ bot.on('messageCreate', async (message) => {
 
     try {
       await db.query(
-        'INSERT INTO user_warnings (guild_id, user_id, warned_by, reason) VALUES ($1, $2, $3, $4)',
-                     [message.guild.id, userMention.id, message.author.id, reason]
+          'INSERT INTO user_warnings (guild_id, user_id, warned_by, reason) VALUES ($1, $2, $3, $4)',
+          [message.guild.id, userMention.id, message.author.id, reason]
       );
 
       await logModerationAction(userMention, 'warn', reason, message);
@@ -439,8 +442,8 @@ bot.on('messageCreate', async (message) => {
 
     try {
       const { rows } = await db.query(
-        'SELECT reason, warned_by, created_at FROM user_warnings WHERE guild_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 10',
-        [message.guild.id, userMention.id]
+          'SELECT reason, warned_by, created_at FROM user_warnings WHERE guild_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 10',
+          [message.guild.id, userMention.id]
       );
 
       if (rows.length === 0) {
@@ -525,8 +528,8 @@ bot.on('messageCreate', async (message) => {
 
       await member.roles.remove(muteRole);
       await db.query(
-        'DELETE FROM muted_users WHERE guild_id = $1 AND user_id = $2',
-        [message.guild.id, userMention.id]
+          'DELETE FROM muted_users WHERE guild_id = $1 AND user_id = $2',
+          [message.guild.id, userMention.id]
       );
       await logModerationAction(userMention, 'unmute', reason, message);
       message.reply(`🔈 ${userMention.tag} has been unmuted.`);
@@ -609,9 +612,9 @@ bot.on('messageCreate', async (message) => {
 
     try {
       await db.query(`
-      INSERT INTO tag_reacts (user_id, emoji, custom_message)
-      VALUES ($1, NULL, $2)
-      ON CONFLICT (user_id, emoji) DO UPDATE SET custom_message = EXCLUDED.custom_message
+        INSERT INTO tag_reacts (user_id, emoji, custom_message)
+        VALUES ($1, NULL, $2)
+          ON CONFLICT (user_id, emoji) DO UPDATE SET custom_message = EXCLUDED.custom_message
       `, [userMention.id, msg]);
 
       message.reply(`✅ Set custom tag message for ${userMention.tag}: "${msg}"`);
