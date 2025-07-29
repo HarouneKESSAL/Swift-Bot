@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "postinstall": "cp /opt/render/project/src/node_modules/@discordjs/util/index.js /opt/render/project/src/node_modules/@discordjs/util/dist/index.js"
+    "postinstall": "cp node_modules/@discordjs/util/dist/index.js node_modules/@discordjs/util/index.js "
   },
   "keywords": [],
   "author": "",
